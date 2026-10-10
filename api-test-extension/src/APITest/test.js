@@ -8,7 +8,8 @@ const TestType = {
 const TestSetResult = {
     PASS: 0,
     PARTIALLY: 1,
-    FAIL: 2
+    FAIL: 2,
+    SKIP: 3
 };
 
 const default_params = {
@@ -29,53 +30,49 @@ class Test {
             }
         }
 
-        if (this.params.async) {
-            this.fn = fn;
-        } else {
-            this.fn = function () {
-                return new Promise((resolve, reject) => {
-                    let msg = fn();
-                    if (msg === '') {
-                        resolve(msg);
-                    } else {
-                        reject(msg);
-                    }
-                });
-            };
-        }
+        this.fn = () => Promise.resolve().then(fn).then(msg => {
+            if (!this.params.async && msg !== '' && !(msg && msg.skip)) throw new Error(String(msg));
+            return msg === undefined ? '' : msg;
+        });
 
         this.type = type;
     }
 
     run() {
+        if (this.params.skip) {
+            return Promise.resolve({ status: TestSetResult.SKIP, msg: this.params.skip });
+        }
         let self = this;
         return new Promise(resolve => {
             let resolved = false, tl_exceeded = false;
+            let timer;
 
             try {
                 this.fn().then(msg => {
                         if (tl_exceeded) return;
                         resolved = true;
+                        clearTimeout(timer);
 
                         resolve({
-                            status: TestSetResult.PASS,
-                            msg: msg,
+                            status: msg && msg.skip ? TestSetResult.SKIP : TestSetResult.PASS,
+                            msg: msg && msg.skip ? msg.skip : msg,
                             hideOnSuccess: self.params.hideOnSuccess
                         });
                     }, msg => {
                         if (tl_exceeded) return;
                         resolved = true;
+                        clearTimeout(timer);
 
                         if (this.type == TestType.SUGGEST) {
                             resolve({
                                 status: TestSetResult.PARTIALLY,
-                                msg: msg,
+                                msg: String(msg),
                                 hideOnSuccess: self.params.hideOnSuccess
                             });
                         } else {
                             resolve({
                                 status: TestSetResult.FAIL,
-                                msg: msg,
+                                msg: String(msg),
                                 hideOnSuccess: self.params.hideOnSuccess
                             });
                         }
@@ -89,14 +86,16 @@ class Test {
                 })
             }
 
-            setTimeout(() => {
+            const timeLimit = self.params.timeout || SINGLE_TEST_TIME_LIMIT;
+            timer = setTimeout(() => {
                 if (!resolved) {
+                    tl_exceeded = true;
                     resolve({
                         status: TestSetResult.FAIL,
-                        msg: `Time limit for test exceeded: ${SINGLE_TEST_TIME_LIMIT}ms`
+                        msg: `Time limit for test exceeded: ${timeLimit}ms`
                     });
                 }
-            }, SINGLE_TEST_TIME_LIMIT);
+            }, timeLimit);
         });
     }
 }
@@ -115,6 +114,11 @@ class TestSet {
 
     require(name, fn, params) {
         this.tests[name] = new Test(fn, TestType.REQUIRE, params);
+        return this;
+    }
+
+    skip(name, reason) {
+        this.tests[name] = new Test(() => '', TestType.REQUIRE, { skip: reason });
         return this;
     }
 
@@ -199,10 +203,10 @@ class APITest {
     }
 
     htmlReport() {
-        let bg_color = ["#dff0d8", "#fcf8e3", "#f2dede"];
-        let text_color = ["#3c763d", "#8a6d3b", "#a94442"];
-        let title_color = ["#5cb85c", "#f0ad4e", "#d9534f"];
-        let test_results = ["[Success]", "[Partially]", "[Failed]"];
+        let bg_color = ["#dff0d8", "#fcf8e3", "#f2dede", "#eeeeee"];
+        let text_color = ["#3c763d", "#8a6d3b", "#a94442", "#555555"];
+        let title_color = ["#5cb85c", "#f0ad4e", "#d9534f", "#777777"];
+        let test_results = ["[Success]", "[Partially]", "[Failed]", "[Skipped]"];
         const div = '<div></div>';
 
         if (this.res) {
@@ -215,7 +219,9 @@ class APITest {
                                     for (let i of test_set.auto_tests) {
                                         yield i.result.status;
                                     }
-                                }()].reduce((prev, next) => Math.max(prev, next));
+                                }()].filter(status => status !== TestSetResult.SKIP);
+                                test_set_status = test_set_status.length
+                                    ? Math.max(...test_set_status) : TestSetResult.SKIP;
 
                                 yield $(div)
                                     .addClass('auto-test-set-title')
@@ -229,7 +235,8 @@ class APITest {
 
                                 yield $tests_list.append([...function* () {
                                     for (let test of test_set.auto_tests) {
-                                        let status = test.result.status == TestSetResult.PASS ? "OK" : "Fail";
+                                        let status = test.result.status === TestSetResult.SKIP ? "Skip"
+                                            : test.result.status === TestSetResult.PASS ? "OK" : "Fail";
                                         let msg = test.result.msg === '' ? '' : '[' + test.result.msg + ']';
 
                                         if (test.result.status != TestSetResult.PASS || !test.result.hideOnSuccess) {
