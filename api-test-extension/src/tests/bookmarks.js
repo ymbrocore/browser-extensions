@@ -4,10 +4,10 @@ var bookmarks_test = new TestSet()
     .require("[Method Exists] bookmarks", methodExists(chrome, 'bookmarks'), { hideOnSuccess: true })
 
     .require("[Method Exists] get", methodExists(chrome.bookmarks, 'get'), { hideOnSuccess: true })
-    .require("[Method Call] get", methodCall(chrome.bookmarks, 'get', "", () => {}))
+    .require('[Invalid bookmark id rejected] get', expectMethodError(chrome.bookmarks, 'get', /invalid|find.*bookmark/i, "", () => {}))
 
     .require("[Method Exists] getChildren", methodExists(chrome.bookmarks, 'getChildren'), { hideOnSuccess: true })
-    .require("[Method Call] getChildren", methodCall(chrome.bookmarks, 'getChildren', "", () => {}))
+    .require('[Invalid bookmark id rejected] getChildren', expectMethodError(chrome.bookmarks, 'getChildren', /invalid|find.*bookmark/i, "", () => {}))
 
     .require("[Method Exists] getRecent", methodExists(chrome.bookmarks, 'getRecent'), { hideOnSuccess: true })
     .require("[Metohd Call] getRecent", methodCall(chrome.bookmarks, 'getRecent', 1, () => {}))
@@ -16,7 +16,7 @@ var bookmarks_test = new TestSet()
     .require("[Method Call] getTree", methodCall(chrome.bookmarks, 'getTree', () => {}))
 
     .require("[Method Exists] getSubTree", methodExists(chrome.bookmarks, 'getSubTree'), { hideOnSuccess: true })
-    .require("[Method Call] getSubTree", methodCall(chrome.bookmarks, 'getSubTree', "", () => {}))
+    .require('[Invalid bookmark id rejected] getSubTree', expectMethodError(chrome.bookmarks, 'getSubTree', /invalid|find.*bookmark/i, "", () => {}))
 
     .require("[Method Exists] search", methodExists(chrome.bookmarks, 'search'), { hideOnSuccess: true })
     .require("[Method Call] search", methodCall(chrome.bookmarks, 'search', "", () => {}))
@@ -26,16 +26,16 @@ var bookmarks_test = new TestSet()
         bookmark => chrome.bookmarks.remove(bookmark.id)))
 
     .require("[Method Exists] move", methodExists(chrome.bookmarks, 'move'), { hideOnSuccess: true })
-    .require("[Method Call] move", methodCall(chrome.bookmarks, 'move', "", {}, () => {}))
+    .require('[Invalid bookmark id rejected] move', expectMethodError(chrome.bookmarks, 'move', /invalid|find.*bookmark/i, "", {}, () => {}))
 
     .require("[Method Exists] update", methodExists(chrome.bookmarks, 'update'), { hideOnSuccess: true })
-    .require("[Method Call] update", methodCall(chrome.bookmarks, 'update', "", {}, () => {}))
+    .require('[Invalid bookmark id rejected] update', expectMethodError(chrome.bookmarks, 'update', /invalid|find.*bookmark/i, "", {}, () => {}))
 
     .require("[Method Exists] remove", methodExists(chrome.bookmarks, 'remove'), { hideOnSuccess: true })
-    .require("[Method Call] remove", methodCall(chrome.bookmarks, 'remove', "", () => {}))
+    .require('[Invalid bookmark id rejected] remove', expectMethodError(chrome.bookmarks, 'remove', /invalid|find.*bookmark/i, "", () => {}))
 
     .require("[Method Exists] removeTree", methodExists(chrome.bookmarks, 'removeTree'), { hideOnSuccess: true })
-    .require("[Method Call] removeTree", methodCall(chrome.bookmarks, 'removeTree', "", () => {}))
+    .require('[Invalid bookmark id rejected] removeTree', expectMethodError(chrome.bookmarks, 'removeTree', /invalid|find.*bookmark/i, "", () => {}))
 
     .require("[Create-Search-Remove]", () => {
         return new Promise((resolve, reject) => {
@@ -57,7 +57,7 @@ var bookmarks_test = new TestSet()
             }).then(bookmarks => {
                 chrome.bookmarks.search("bookmarks_test_", arr => {
                     if (arr.length != bookmarks.length) {
-                        reject(`The number of found bookmarks (${arr.length}) is 
+                        reject(`The number of found bookmarks (${arr.length}) is
                                 different from expected (${bookmarks.length})`);
                         return;
                     }

@@ -11,56 +11,56 @@ var tabs_test = new TestSet()
     .require("[Method Exists] get", methodExists(chrome.tabs, 'get'), { hideOnSuccess: true })
     .require("[Method Call] get", () => new Promise((resolve, reject) => {
         chrome.tabs.getCurrent(tab => {
-            let res = methodCall(chrome.tabs, 'get', tab.id, () => {})();
-            if (res == '') {
-                resolve(res);
-            } else {
-                reject(res);
-            }
+            methodCall(chrome.tabs, 'get', tab.id, () => {})().then(resolve, reject);
         });
     }), { async: true })
 
     .require("[Method Exists] connect", methodExists(chrome.tabs, 'connect'), { hideOnSuccess: true })
-    .require("[Method Call] connect", methodCall(chrome.tabs, 'connect', 1))
-
-    .suggest("[Method Exists] {Deprecated} sendRequest", methodExists(chrome.tabs, 'sendRequest'),
-        { hideOnSuccess: true })
-    .suggest("[Method Call] {Deprecated} sendRequest", methodCall(chrome.tabs, 'sendRequest', 1, {}, () => {}))
+    .skip('[MV2] tabs.sendRequest', 'Replaced by tabs.sendMessage.')
 
     .require("[Method Exists] sendMessage", methodExists(chrome.tabs, 'sendMessage'), { hideOnSuccess: true })
-    .require("[Method Call] sendMessage", methodCall(chrome.tabs, 'sendMessage', 1, {}, () => {}))
-
-    .require("[Method Exists] executeScript", methodExists(chrome.tabs, 'executeScript'))
-
-    .require("[Check sendMessage, executeScript]", () => new Promise((resolve, reject) => {
-        let msg = { data: "msg" };
-        let res = { data: "response" };
-
-        chrome.tabs.create({
-            url: "http://ya.ru/",
-            selected: false
-        }, tab => {
-            chrome.tabs.executeScript(tab.id, {
-                file: "./src/tests/tabs_bg.js"
-            }, () => {
-                chrome.tabs.sendMessage(tab.id, msg, response => {
-                    if (response.data === res.data) {
-                        resolve('');
-                    } else {
-                        reject("Sent and received responses are different")
-                    }
-
-                    chrome.tabs.remove(tab.id);
+    .require('[Method Exists] scripting', methodExists(chrome, 'scripting'), { hideOnSuccess: true })
+    .require('[Method Exists] scripting.executeScript', methodExists(chrome.scripting, 'executeScript'))
+    .require('[Check scripting.executeScript, tabs.sendMessage, tabs.connect]', () => {
+        return withTestTab('https://ya.ru/?api_test=tabs', async tab => {
+            await callChrome(chrome.scripting, 'executeScript', {
+                target: { tabId: tab.id }, files: ['src/tests/tabs_bg.js']
+            });
+            const response = await callChrome(chrome.tabs, 'sendMessage', tab.id, { data: 'msg' });
+            if (!response || response.data !== 'response') throw new Error('Message response did not match.');
+            await new Promise((resolve, reject) => {
+                const port = chrome.tabs.connect(tab.id, { name: 'api-test' });
+                const timer = setTimeout(() => {
+                    port.disconnect();
+                    reject(new Error('Port response timed out.'));
+                }, SINGLE_TEST_TIME_LIMIT);
+                port.onDisconnect.addListener(() => {
+                    const error = chrome.runtime.lastError;
+                    clearTimeout(timer);
+                    reject(new Error(error ? error.message : 'Port disconnected before responding.'));
                 });
-            })
+                port.onMessage.addListener(message => {
+                    clearTimeout(timer);
+                    if (message.data === 'response') resolve();
+                    else reject(new Error('Port response did not match.'));
+                    port.disconnect();
+                });
+                port.postMessage({ data: 'msg' });
+            });
+            return '';
         });
-    }), { async: true })
-
-    .require("[Method Exists] getSelected", methodExists(chrome.tabs, 'getSelected'), { hideOnSuccess: true })
-    .require("[Method Call] getSelected", methodCall(chrome.tabs, 'getSelected', () => {}))
-
-    .require("[Method Exists] getAllInWindow", methodExists(chrome.tabs, 'getAllInWindow'), { hideOnSuccess: true })
-    .require("[Method Call] getAllInWindow", methodCall(chrome.tabs, 'getAllInWindow', () => {}))
+    }, { timeout: 20000 })
+    .skip('[MV2] getSelected and getAllInWindow', 'Replaced by tabs.query.')
+    .require('[Query active tab]', async () => {
+        const tabs = await callChrome(chrome.tabs, 'query', { active: true, currentWindow: true });
+        if (tabs.length !== 1 || !tabs[0].active) throw new Error('Expected one active tab.');
+        return '';
+    })
+    .require('[Query current window]', async () => {
+        const tabs = await callChrome(chrome.tabs, 'query', { currentWindow: true });
+        if (!tabs.length) throw new Error('Current window contains no tabs.');
+        return '';
+    })
 
     .require("[Method Exists] create", methodExists(chrome.tabs, 'create'), { hideOnSuccess: true })
     .require("[Method Call] create", methodCall(chrome.tabs, 'create', {
@@ -75,7 +75,7 @@ var tabs_test = new TestSet()
                     return chain_0.then(() => new Promise(resolve_0 => {
                         window_.tabs.reduce((chain_1, tab) => {
                             return chain_1.then(() => new Promise(resolve_1 => {
-                                if (tab.url == "http://single_tab_test/") {
+                                if ((tab.url || tab.pendingUrl) == "http://single_tab_test/") {
                                     chrome.tabs.remove(tab.id);
                                     resolve('');
                                     resolved = true;
@@ -105,7 +105,7 @@ var tabs_test = new TestSet()
 
                 new Promise(resolve_2 => {
                     for (cnt = TabsNum; cnt != 0; --cnt) {
-                        chrome.tabs.create({url: "http://chrome_tabs_test/", selected: false});
+                        chrome.tabs.create({url: "http://chrome_tabs_test/", active: false});
                     }
                     setTimeout(() => {
                         resolve_2();
@@ -116,7 +116,7 @@ var tabs_test = new TestSet()
                             return chain_0.then(() => new Promise(resolve_0 => {
                                 window_.tabs.reduce((chain_1, tab) => {
                                     return chain_1.then(() => new Promise(resolve_1 => {
-                                        if (tab.url == "http://chrome_tabs_test/") {
+                                        if ((tab.url || tab.pendingUrl) == "http://chrome_tabs_test/") {
                                             cnt++;
                                             chrome.tabs.remove(tab.id);
                                         }
@@ -138,7 +138,7 @@ var tabs_test = new TestSet()
                                     return chain_0.then(() => new Promise(resolve_0 => {
                                         window_.tabs.reduce((chain_1, tab) => {
                                             return chain_1.then(() => new Promise(resolve_1 => {
-                                                if (tab.url == "http://chrome_tabs_test/") {
+                                                if ((tab.url || tab.pendingUrl) == "http://chrome_tabs_test/") {
                                                     cnt++;
                                                 }
                                                 resolve_1();
@@ -180,13 +180,7 @@ var tabs_test = new TestSet()
     .require("[Method Exists] move", methodExists(chrome.tabs, 'move'), { hideOnSuccess: true })
     .require("[Method Call] move", () => new Promise((resolve, reject) => {
         chrome.tabs.getCurrent(tab => {
-            var res = methodCall(chrome.tabs, 'move', tab.id, { index: -1 }, () => {})();
-
-            if (res == '') {
-                resolve(res);
-            } else {
-                reject(res);
-            }
+            methodCall(chrome.tabs, 'move', tab.id, { index: -1 }, () => {})().then(resolve, reject);
         });
     }), { async: true })
 
@@ -203,12 +197,7 @@ var tabs_test = new TestSet()
     .require("[Method Exists] update", methodExists(chrome.tabs, 'update'), { hideOnSuccess: true })
     .require("[Method Call] update", () => new Promise((resolve, reject) => {
         chrome.tabs.getCurrent(tab => {
-            let res = methodCall(chrome.tabs, 'update', tab.id, {}, () => {})();
-            if (res == '') {
-                resolve(res);
-            } else {
-                reject(res);
-            }
+            methodCall(chrome.tabs, 'update', tab.id, {}, () => {})().then(resolve, reject);
         });
     }), { async: true })
 
@@ -217,9 +206,34 @@ var tabs_test = new TestSet()
 
     .require("[Method Exists] captureVisibleTab", methodExists(chrome.tabs, 'captureVisibleTab'),
         { hideOnSuccess: true })
-    .require("[Method Call] captureVisibleTab", methodCall(chrome.tabs, 'captureVisibleTab', () => {}))
+    .skip('[Capture visible tab]', 'Requires a controlled activeTab grant from invoking the extension on the captured page.')
 
-    .require("[Method Exists] insertCSS", methodExists(chrome.tabs, 'insertCSS'), { hideOnSuccess: true })
+    .require('[Method Exists] scripting.insertCSS', methodExists(chrome.scripting, 'insertCSS'),
+        { hideOnSuccess: true })
+    .require('[Method Exists] scripting.removeCSS', methodExists(chrome.scripting, 'removeCSS'),
+        { hideOnSuccess: true })
+    .require('[Insert-Remove CSS]', () => {
+        return withTestTab('https://ya.ru/?api_test=css', async tab => {
+            const target = { tabId: tab.id };
+            const readOutline = () => callChrome(chrome.scripting, 'executeScript', {
+                target,
+                func: () => {
+                    const style = getComputedStyle(document.body);
+                    return [style.outlineWidth, style.outlineColor].join(' ');
+                }
+            }).then(results => results[0].result);
+            const original = await readOutline();
+            const injection = { target, css: 'body { outline: 7px solid rgb(1, 2, 3) !important; }' };
+            try {
+                await callChrome(chrome.scripting, 'insertCSS', injection);
+                if (await readOutline() !== '7px rgb(1, 2, 3)') throw new Error('CSS was not applied.');
+            } finally {
+                await callChrome(chrome.scripting, 'removeCSS', injection);
+            }
+            if (await readOutline() !== original) throw new Error('CSS was not removed.');
+            return '';
+        });
+    }, { timeout: 20000 })
 
     .require("[Method Exists] setZoom", methodExists(chrome.tabs, 'setZoom'), { hideOnSuccess: true })
     .require("[Method Exists] getZoom", methodExists(chrome.tabs, 'getZoom'), { hideOnSuccess: true })
@@ -258,7 +272,7 @@ var tabs_test = new TestSet()
             let resolved = false;
 
             let listener = function(tab) {
-                if (tab.url == "http://on_created_tab_test/") {
+                if ((tab.url || tab.pendingUrl) == "http://on_created_tab_test/") {
                     chrome.tabs.onCreated.removeListener(listener);
                     resolved = true;
                     chrome.tabs.remove(tab.id);
@@ -286,7 +300,7 @@ var tabs_test = new TestSet()
             let resolved = false;
 
             let listener = function (id, info, tab) {
-                if (tab.url == "http://on_updated_tab_test/#") {
+                if ((tab.url || tab.pendingUrl) == "http://on_updated_tab_test/#") {
                     chrome.tabs.onUpdated.removeListener(listener);
                     resolved = true;
                     chrome.tabs.remove(id);

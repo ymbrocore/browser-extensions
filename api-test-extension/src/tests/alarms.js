@@ -4,7 +4,7 @@ var alarms_test = new TestSet()
     .require("[Method Exists]", methodExists(chrome, "alarms"), { hideOnSuccess: true })
 
     .require("[Method Exists] create", methodExists(chrome.alarms, 'create'), { hideOnSuccess: true })
-    .require("[Method Call] create", methodCall(chrome.alarms, 'create', "", {}))
+    .require("[Method Call] create", methodCall(chrome.alarms, 'create', '', { delayInMinutes: 1 }))
 
     .require("[Method Exists] get", methodExists(chrome.alarms, 'get'), { hideOnSuccess: true })
     .require("[Method Call] get", methodCall(chrome.alarms, 'get', "", () => {}))

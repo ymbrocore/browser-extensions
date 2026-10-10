@@ -121,7 +121,7 @@ var content_settings_test = new TestSet()
             for (let prop of propertyNames.filter(val => val != 'fullscreen')) {
                 yield { name: prop, expectedStatus: 'block' };
             }
-            yield { name: 'fullscreen', expectedStatus: 'ask' };
+            yield { name: 'fullscreen', expectedStatus: 'allow' };
         }()].reduce(settingsCheckConvolution, Promise.resolve("")).then(result => {
             if (result === "") {
                 resolve("");

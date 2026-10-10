@@ -7,13 +7,13 @@ var history_test = new TestSet()
     .require("[Method Call] search", methodCall(chrome.history, 'search', {text: ""}, () => {}))
 
     .require("[Method Exists] getVisits", methodExists(chrome.history, 'getVisits'), { hideOnSuccess: true })
-    .require("[Method Call] getVisits", methodCall(chrome.history, 'getVisits', {url: "ya.ru"}, () => {}))
+    .require("[Method Call] getVisits", methodCall(chrome.history, 'getVisits', {url: 'https://api-test.invalid/history-probe'}, () => {}))
 
     .require("[Method Exists] addUrl", methodExists(chrome.history, 'addUrl'), { hideOnSuccess: true })
-    .require("[Method Call] addUrl", methodCall(chrome.history, 'addUrl', {url: "ya.ru"}, () => {}))
+    .require("[Method Call] addUrl", methodCall(chrome.history, 'addUrl', {url: 'https://api-test.invalid/history-probe'}, () => {}))
 
     .require("[Method Exists] deleteUrl", methodExists(chrome.history, 'deleteUrl'), { hideOnSuccess: true })
-    .require("[Method Call] deleteUrl", methodCall(chrome.history, 'deleteUrl', {url: ""}, () => {}))
+    .require("[Method Call] deleteUrl", methodCall(chrome.history, 'deleteUrl', {url: 'https://api-test.invalid/history-probe'}, () => {}))
 
     .require("[Method Exists] deleteRange", methodExists(chrome.history, 'deleteRange'), { hideOnSuccess: true })
     .require("[Method Call] deleteRange", methodCall(chrome.history, 'deleteRange', {

@@ -1,114 +1,62 @@
 'use strict';
 
-/*
-Tests for chrome.extension
-https://developer.chrome.com/extensions/extension
-* */
+let lastWorkerInstanceId;
 
 const extension_test = new TestSet()
-    .require("[Method Exists] extension", methodExists(chrome, 'extension'), { hideOnSuccess: true })
-
-    .suggest("[Method Exists] sendRequest {deprecated}",
-        methodExists(chrome.extension, 'sendRequest'), { hideOnSuccess: true })
-    .suggest("[Method Call] sendRequest {deprecated}",
-        methodCall(chrome.extension, 'sendRequest', {}))
-
-    .require("[Method Exists] getURL", methodExists(chrome.extension, 'getURL'), { hideOnSuccess: true })
-    .require("[Method Call] getURL", methodCall(chrome.extension, 'getURL', "/"), { hideOnSuccess: true })
-    .require("[Check getURL]",
-        () => chrome.extension.getURL("/") == `chrome-extension://${document.location.hostname}/`
-            ? ''
-            : `Incorrect url: expected ${ 
-                `chrome-extension://${document.location.hostname}/` 
-            }, got ${ chrome.extension.getURL("/") } instead`
-    )
-
-    .require("[Method Exists] getViews", methodExists(chrome.extension, 'getViews'), { hideOnSuccess: true })
-    .require("[Method Call] getViews", methodCall(chrome.extension, 'getViews', {}), { hideOnSuccess: true })
-    .require("[Check getViews]", () => new Promise((resolve, reject) => {
-        let pages = chrome.extension.getViews();
-
-        if (pages.length != 2) {
-            return reject("Expected number of pages to be found is 2, found: " + String(pages.length));
+    .require('[Method Exists] runtime', methodExists(chrome, 'runtime'), { hideOnSuccess: true })
+    .require('[Method Exists] runtime.getURL', methodExists(chrome.runtime, 'getURL'), { hideOnSuccess: true })
+    .require('[Check runtime.getURL]', () => {
+        return chrome.runtime.getURL('/') === `chrome-extension://${chrome.runtime.id}/`
+            ? '' : 'Incorrect extension URL.';
+    })
+    .require('[Method Exists] getViews', methodExists(chrome.extension, 'getViews'), { hideOnSuccess: true })
+    .require('[Check getViews]', () => {
+        const views = chrome.extension.getViews();
+        return views.some(view => view === window) ? '' : 'Report page is missing from extension views.';
+    })
+    .skip('[MV2] getBackgroundPage and background DOM', 'Manifest V3 uses a service worker without a DOM.')
+    .skip('[MV2] sendRequest, onRequest and onRequestExternal', 'Replaced by runtime messaging tests.')
+    .skip('[MV2] getExtensionTabs', 'Use extension.getViews or tabs.query.')
+    .require('[Method Exists] runtime.sendMessage', methodExists(chrome.runtime, 'sendMessage'),
+        { hideOnSuccess: true })
+    .require('[Event Exists] runtime.onMessage', eventExists(chrome.runtime, 'onMessage'),
+        { hideOnSuccess: true })
+    .require('[Service worker responds]', async () => {
+        const response = await sendTestMessage('worker', 'ping');
+        if (response.source !== 'worker' || typeof response.instanceId !== 'string') {
+            throw new Error('Unexpected service worker response.');
         }
-
-        if (!pages[0].document.querySelector(".title .title-container")
-            && !pages[1].document.querySelector(".title .title-container")) {
-            return reject("Expected element for main page not found in pages");
-        }
-
-        if (!pages[0].document.getElementById('bg-div-elem')
-            && !pages[1].document.getElementById('bg-div-elem')) {
-            return reject("Expected element for background page not found in pages");
-        }
-
-        return resolve('');
-    }), { async: true })
-
-    .require("[Method Exists] getBackgroundPage",
-        methodExists(chrome.extension, 'getBackgroundPage'), { hideOnSuccess: true })
-    .require("[Method Call] getBackgroundPage",
-        methodCall(chrome.extension, 'getBackgroundPage'), { hideOnSuccess: true })
-    .require("[Check getBackgroundPage]", () => new Promise((resolve, reject) => {
-        let bgPage = chrome.extension.getBackgroundPage();
-
-        if (bgPage.document.getElementById('bg-div-elem')) {
-            return resolve('');
-        } else {
-            return reject("Expected element not found on background page");
-        }
-    }), { async: true })
-
-    .suggest("[Method Exists] getExtensionTabs {deprecated}",
-        methodExists(chrome.extension, 'getExtensionTabs'), { hideOnSuccess: true })
-    .suggest("[Method Call] getExtensionTabs {deprecated}",
-        methodExists(chrome.extension, 'getExtensionTabs'))
-
-    .require("[Method Exists] isAllowedIncognitoAccess",
-        methodExists(chrome.extension, 'isAllowedIncognitoAccess'), { hideOnSuccess: true })
-    .require("[Method Call] isAllowedIncognitoAccess",
-        methodCall(chrome.extension, 'isAllowedIncognitoAccess', () => {}), { hideOnSuccess: true })
-    .require("[Check isAllowedIncognitoAccess]", () => new Promise((resolve, reject) => {
-        chrome.extension.isAllowedIncognitoAccess(isAllowedAccess => {
-            if (typeof isAllowedAccess == "boolean") {
-                return resolve('');
-            } else {
-                console.log("[Check isAllowedIncognitoAccess]", isAllowedAccess);
-                return reject(`Returned callback value expected to be boolean, got ${
-                    typeof isAllowedAccess
-                } instead (see the console for value)`);
+        lastWorkerInstanceId = response.instanceId;
+        return '';
+    })
+    .require('[Check isAllowedIncognitoAccess]', async () => {
+        const allowed = await callChrome(chrome.extension, 'isAllowedIncognitoAccess');
+        if (typeof allowed !== 'boolean') throw new Error('Incognito access flag is not a boolean.');
+        return '';
+    })
+    .require('[Check isAllowedFileSchemeAccess]', async () => {
+        const allowed = await callChrome(chrome.extension, 'isAllowedFileSchemeAccess');
+        if (typeof allowed !== 'boolean') throw new Error('File access flag is not a boolean.');
+        return '';
+    })
+    .require('[Method Exists] setUpdateUrlData', methodExists(chrome.extension, 'setUpdateUrlData'),
+        { hideOnSuccess: true })
+    .require('[Method Call] setUpdateUrlData', methodCall(chrome.extension, 'setUpdateUrlData', ''))
+    .manual('worker-restart-test', 'Stop this extension worker on chrome://serviceworker-internals ' +
+        '(or browser://serviceworker-internals), then return here and click ' +
+        "<button id='worker-restart-button' class='button-blue'>Ping restarted worker</button>")
+    .report_ready(() => {
+        $('#worker-restart-button').click(async () => {
+            try {
+                const response = await sendTestMessage('worker', 'ping');
+                if (!lastWorkerInstanceId) throw new Error('Initial worker check did not pass.');
+                if (response.source !== 'worker' || response.instanceId === lastWorkerInstanceId) {
+                    throw new Error('Worker has not restarted. Stop it before this check.');
+                }
+                doneManualTest('worker-restart-test');
+                lastWorkerInstanceId = response.instanceId;
+            } catch (error) {
+                failManualTest('worker-restart-test', error.message);
             }
         });
-    }), { async: true })
-
-    .require("[Method Exists] isAllowedFileSchemeAccess",
-        methodExists(chrome.extension, 'isAllowedFileSchemeAccess'), { hideOnSuccess: true })
-    .require("[Method Call] isAllowedFileSchemeAccess",
-        methodCall(chrome.extension, 'isAllowedFileSchemeAccess', () => {}), { hideOnSuccess: true })
-    .require("[Check isAllowedFileSchemeAccess]", () => new Promise((resolve, reject) => {
-        chrome.extension.isAllowedFileSchemeAccess(isAllowedAccess => {
-            if (typeof isAllowedAccess == "boolean") {
-                return resolve('');
-            } else {
-                console.log("[Check isAllowedFileSchemeAccess]", isAllowedAccess);
-                return reject(`Returned callback value expected to be boolean, got ${
-                    typeof isAllowedAccess
-                } instead (see the console for value)`);
-            }
-        });
-    }), { async: true })
-
-    .require("[Method Exists] setUpdateUrlData",
-        methodExists(chrome.extension, 'setUpdateUrlData'), { hideOnSuccess: true })
-    .require("[Method Call] setUpdateUrlData",
-        methodCall(chrome.extension, 'setUpdateUrlData', ""))
-
-    .suggest("[Event Exists] onRequest {deprecated}",
-        eventExists(chrome.extension, 'onRequest'), { hideOnSuccess: true })
-    .suggest("[Event Use] onRequest {deprecated}", eventUse(chrome.extension, 'onRequest'))
-
-    .suggest("[Event Exists] onRequestExternal {deprecated}",
-        eventExists(chrome.extension, 'onRequestExternal'), { hideOnSuccess: true })
-    .suggest("[Event Use] onRequestExternal {deprecated}", eventUse(chrome.extension, 'onRequestExternal'))
-
-; // -- extension_test -- //
+    });

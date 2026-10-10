@@ -1,45 +1,27 @@
 'use strict';
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || message.target !== 'report' || message.tabId !== reportTabId) return;
+
+    if (message.type === 'ping') {
+        sendResponse({ source: 'report' });
+    } else if (message.type === 'popup-result') {
+        if (message.ok) {
+            doneManualTest('popup-scripts-test');
+        } else {
+            failManualTest('popup-scripts-test', message.error);
+        }
+        sendResponse({ source: 'report' });
+    }
+});
+
 var popup_scripts = new TestSet()
-    .require('[empty]', () => '', { hideOnSuccess: true })
-    .manual('popup-scripts-test', "Click on extension button again")
-    .report_ready(() => {
-        const TEST_NAME = 'popup-scripts-test';
-
-        let tabsMsgFromPopup = { data: 'tabs_msg_from_popup' }; // Incoming
-        let msgToPopup = { data: 'msg_from_tab' }; // Outgoing
-        let runtimeMsgFromPopup = { data: 'runtime_msg_from_popup' }; // Incoming
-        let runtimeMsgFromBackground = { data: 'runtime_msg_from_background'}; // Incoming
-
-        // Here tab message is chrome.tabs.sendMessage() and
-        // runtime message is chrome.tabs.sendMessage() :
-
-        // 1. Activated popup sends initial tab message to tab.
-        // 2. Tab receives initial message and sends broadcast runtime message and popup should receive it.
-        // 3. Then popup sends broadcast runtime message to tab and awaits for callback.
-        // 4. Background also receives broadcast message from popup.
-        // 5. Then background sends broadcast runtime message to tab.
-        // 6. If tab received msg from background the test is done.
-
-        let listener = function (response, sender, sendResponse) {
-            if (response.data == tabsMsgFromPopup.data) {
-                sendResponse('Tab');
-                chrome.runtime.sendMessage(msgToPopup, response => {
-                    if (response != 'Popup') {
-                        failManualTest(
-                            TEST_NAME,
-                            "Message received by the tab from the popup differs from expected"
-                        )
-                    }
-                });
-            } else if (response.data == runtimeMsgFromPopup.data) {
-                sendResponse('Tab');
-            } else if (response.data == runtimeMsgFromBackground.data) {
-                sendResponse('Tab');
-                doneManualTest('popup-scripts-test');
-                chrome.runtime.onMessage.removeListener(listener);
-            }
-        };
-
-        chrome.runtime.onMessage.addListener(listener);
-    });
+    .require('[Worker responds to repeated messages]', async () => {
+        for (let i = 0; i < 2; i++) {
+            const response = await sendTestMessage('worker', 'ping');
+            if (response.source !== 'worker') throw new Error('Unexpected worker response.');
+        }
+        return '';
+    })
+    .manual('popup-scripts-test', 'Open the extension popup, close it and open it again. ' +
+        'Each popup must show Messages OK');

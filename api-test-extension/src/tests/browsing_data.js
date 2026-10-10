@@ -44,7 +44,7 @@ browsing_data_test.require("[Check remove history] {this test assumes that chrom
             let since = (new Date()).getTime();
             chrome.tabs.create({
                 url: "http://ya.ru",
-                selected: false
+                active: false
             }, tab => {
                 chrome.tabs.onUpdated.addListener((tabID, info) => {
                     if (tab.id == tabID && info.status == "complete") {

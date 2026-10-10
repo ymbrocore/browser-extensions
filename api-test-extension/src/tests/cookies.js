@@ -4,16 +4,16 @@ var cookies_test = new TestSet()
     .require("[Method Exists] cookies", methodExists(chrome, 'cookies'), { hideOnSuccess: true })
 
     .require("[Method Exists] cookies.get", methodExists(chrome.cookies, 'get'), { hideOnSuccess: true })
-    .require("[Method Call] cookies.get", methodCall(chrome.cookies, 'get', {url: '', name: ''}, () => {}))
+    .require("[Method Call] cookies.get", methodCall(chrome.cookies, 'get', {url: 'https://api-test.invalid/', name: 'api-test-probe'}, () => {}))
 
     .require("[Method Exists] cookies.getAll", methodExists(chrome.cookies, 'getAll'), { hideOnSuccess: true })
-    .require("[Method Call] cookies.getAll", methodCall(chrome.cookies, 'getAll', {url: '', name: ''}, () => {}))
+    .require("[Method Call] cookies.getAll", methodCall(chrome.cookies, 'getAll', {url: 'https://api-test.invalid/', name: 'api-test-probe'}, () => {}))
 
     .require("[Method Exists] cookies.set", methodExists(chrome.cookies, 'set'), { hideOnSuccess: true })
-    .require("[Method Call] cookies.set", methodCall(chrome.cookies, 'set', {url: ''}))
+    .require("[Method Call] cookies.set", methodCall(chrome.cookies, 'set', {url: 'https://api-test.invalid/', name: 'api-test-probe', value: 'probe'}))
 
     .require("[Method Exists] cookies.remove", methodExists(chrome.cookies, 'remove'), { hideOnSuccess: true })
-    .require("[Method Call] cookies.remove", methodCall(chrome.cookies, 'remove', {url: '', name: ''}, () => {}))
+    .require("[Method Call] cookies.remove", methodCall(chrome.cookies, 'remove', {url: 'https://api-test.invalid/', name: 'api-test-probe'}, () => {}))
 
     .require("[Method Exists] cookies.getAllCookieStores", methodExists(chrome.cookies, 'getAllCookieStores'),
         { hideOnSuccess: true })
@@ -87,5 +87,3 @@ var cookies_test = new TestSet()
             }
         });
     }, { async: true });
-
-

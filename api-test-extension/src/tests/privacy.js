@@ -11,17 +11,8 @@ var privacy_test = new TestSet()
         chrome.privacy.network.networkPredictionEnabled.get({}, () => resolve(''));
     }), { async: true })
 
-    .suggest("[Property Exists] {Deprecated} network.webRTCMultipleRoutesEnabled",
-        methodExists(chrome.privacy.network, 'webRTCMultipleRoutesEnabled'), { hideOnSuccess: true })
-    .suggest("[Property Get] {Deprecated} network.webRTCMultipleRoutesEnabled", () => new Promise((resolve, reject) => {
-        chrome.privacy.network.webRTCMultipleRoutesEnabled.get({}, () => resolve(''));
-    }), { async: true })
-
-    .require("[Property Exists] {Deprecated} network.webRTCNonProxiedUdpEnabled",
-        methodExists(chrome.privacy.network, 'webRTCNonProxiedUdpEnabled'), { hideOnSuccess: true })
-    .require("[Property Get] {Deprecated} network.webRTCNonProxiedUdpEnabled", () => new Promise((resolve, reject) => {
-        chrome.privacy.network.webRTCNonProxiedUdpEnabled.get({}, () => resolve(''));
-    }), { async: true })
+    .skip('[Legacy] network.webRTCMultipleRoutesEnabled and webRTCNonProxiedUdpEnabled',
+        'Use network.webRTCIPHandlingPolicy in the current API.')
 
     .require("[Property Exists] network.webRTCIPHandlingPolicy",
         methodExists(chrome.privacy.network, 'webRTCIPHandlingPolicy'), { hideOnSuccess: true })
@@ -43,11 +34,7 @@ var privacy_test = new TestSet()
         chrome.privacy.services.autofillEnabled.get({}, () => resolve(''));
     }), { async: true })
 
-    .require("[Property Exists] services.hotwordSearchEnabled",
-        methodExists(chrome.privacy.services, 'hotwordSearchEnabled'), { hideOnSuccess: true })
-    .require("[Property Get] services.hotwordSearchEnabled", () => new Promise((resolve, reject) => {
-        chrome.privacy.services.hotwordSearchEnabled.get({}, () => resolve(''));
-    }), { async: true })
+    .skip('[Legacy] services.hotwordSearchEnabled', 'Removed from the current Chrome privacy API.')
 
     .require("[Property Exists] services.passwordSavingEnabled",
         methodExists(chrome.privacy.services, 'passwordSavingEnabled'), { hideOnSuccess: true })

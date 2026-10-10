@@ -1,4 +1,11 @@
 let msg = { data: "msg" };
+
+chrome.runtime.onConnect.addListener(port => {
+    if (port.name !== 'api-test') return;
+    port.onMessage.addListener(message => {
+        if (message.data === 'msg') port.postMessage({ data: 'response' });
+    });
+});
 let res = { data: "response" };
 
 let listener = function (response, sender, sendResponse) {

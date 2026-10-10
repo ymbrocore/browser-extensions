@@ -44,46 +44,63 @@ var web_request_test = new TestSet()
         let requestId = undefined;
         let curName = 'root';
         let tabID = undefined;
+        let finished = false;
+        let timer;
+        const listeners = [];
+        const finish = error => {
+            if (finished) return;
+            finished = true;
+            clearTimeout(timer);
+            for (const [event, listener] of listeners) event.removeListener(listener);
+            if (tabID !== undefined) callChrome(chrome.tabs, 'remove', tabID).catch(console.error);
+            if (error) reject(error);
+            else resolve('');
+        };
 
         let get_listener = (name) => {
             return function (details) {
+                if (finished) return;
+                if (requestId === undefined && name === 'onBeforeRequest' &&
+                    details.url.includes(`api_test=${query}`)) requestId = details.requestId;
+                if (requestId === undefined || requestId !== details.requestId) return;
+                if (name === 'onErrorOccurred') {
+                    finish(new Error(`Test request failed: ${details.error}`));
+                    return;
+                }
                 if (node[name] !== undefined) {
                     if (node[name].term === true) {
-                        resolve('');
-                        if (tabID) {
-                            chrome.tabs.remove(tabID);
-                        }
+                        finish();
+                        return;
                     }
 
-                    if (requestId === undefined) {
-                        if (details.url.indexOf(query) != -1) {
-                            requestId = details.requestId;
-                        }
-                    }
-
-                    if (requestId == details.requestId) {
-                        node = node[name];
-                        curName = name;
-                    }
+                    node = node[name];
+                    curName = name;
                 } else {
-                    if (requestId == details.requestId && requestId !== undefined) {
-                        reject(`Request with ID:${requestId} has violated request life cycle, ` +
-                               `unexpected transition from ${curName} to ${name} occurred`);
-                    }
-
-                    if (tabID) {
-                        chrome.tabs.remove(tabID);
-                    }
+                    finish(new Error(`Request with ID:${requestId} has violated request life cycle, ` +
+                           `unexpected transition from ${curName} to ${name} occurred`));
                 }
             };
         };
 
-        for (let name of ['onBeforeRequest', 'onBeforeSendHeaders', 'onSendHeaders', 'onHeadersReceived',
-                          'onAuthRequired', 'onBeforeRedirect', 'onResponseStarted', 'onCompleted']) {
-            chrome.webRequest[name].addListener(get_listener(name), { urls: ["http://ya.ru/*"] });
+        try {
+            for (let name of ['onBeforeRequest', 'onBeforeSendHeaders', 'onSendHeaders', 'onHeadersReceived',
+                              'onAuthRequired', 'onBeforeRedirect', 'onResponseStarted', 'onCompleted',
+                              'onErrorOccurred']) {
+                const event = chrome.webRequest[name];
+                const listener = get_listener(name);
+                event.addListener(listener, {
+                    urls: ['http://ya.ru/*', 'https://ya.ru/*'], types: ['main_frame']
+                });
+                listeners.push([event, listener]);
+            }
+            timer = setTimeout(() => finish(new Error('Test request did not complete within 15 seconds.')), 15000);
+            callChrome(chrome.tabs, 'create', {
+                url: `https://ya.ru/?api_test=${query}`, active: false
+            }).then(tab => {
+                tabID = tab.id;
+                if (finished) callChrome(chrome.tabs, 'remove', tabID).catch(console.error);
+            }, finish);
+        } catch (error) {
+            finish(error);
         }
-
-        chrome.tabs.create({ url: "http://ya.ru/search/?text=" + query }, tab => {
-            tabID = tab.id;
-        });
-    }), { async: true });
+    }), { async: true, timeout: 20000 });

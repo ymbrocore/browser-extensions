@@ -1,41 +1,31 @@
 'use strict';
 
 var browser_action_test = new TestSet()
-    .require("[Method Exists] browserAction", methodExists(chrome, 'browserAction'), { hideOnSuccess: true })
-
-    .require("[Method Exists] setTitle", methodExists(chrome.browserAction, 'setTitle'), { hideOnSuccess: true })
-    .require("[Method Call] setTitle", methodCall(chrome.browserAction, 'setTitle', {title: "BrowserActionTest"}))
-
-    .require("[Method Exists] getTitle", methodExists(chrome.browserAction, 'getTitle'), { hideOnSuccess: true })
-    .require("[Method Call] getTitle", methodCall(chrome.browserAction, 'getTitle', {}, () => {}))
-
-    .require("[Set-Get Title]", () => {
-        return new Promise((resolve, reject) => {
-            chrome.browserAction.getTitle({}, title => {
-                if (title == "BrowserActionTest") {
-                    resolve('');
-                } else {
-                    reject("Title incorrect");
-                }
-            })
-        });
-    }, { async: true })
-
-    .require("[Method Exists] setIcon", methodExists(chrome.browserAction, 'setIcon'), { hideOnSuccess: true })
-    .require("[Method Call] setIcon", methodCall(chrome.browserAction, 'setIcon', {path: ""}, () => {}))
-
-    .require("[Method Exists] setPopup", methodExists(chrome.browserAction, 'setPopup'), { hideOnSuccess: true })
-
-    .require("[Method Exists] getPopup", methodExists(chrome.browserAction, 'getPopup'), { hideOnSuccess: true })
-    .require("[Method Call] getPopup", () => {
-        return new Promise((resolve, reject) => {
-            chrome.browserAction.getPopup({}, result => {
-                if (typeof result === 'string' &&
-                    result.indexOf("src/browser_action/popup.html") != -1) {
-                    resolve('');
-                } else {
-                    reject("Popup incorrect");
-                }
-            })
-        });
-    }, { async: true });
+    .require('[Method Exists] action', methodExists(chrome, 'action'), { hideOnSuccess: true })
+    .require('[Method Exists] setTitle', methodExists(chrome.action, 'setTitle'), { hideOnSuccess: true })
+    .require('[Method Call] setTitle', methodCall(chrome.action, 'setTitle', { title: 'Action Test' }, () => {}))
+    .require('[Method Exists] getTitle', methodExists(chrome.action, 'getTitle'), { hideOnSuccess: true })
+    .require('[Set-Get Title]', async () => {
+        const original = await callChrome(chrome.action, 'getTitle', {});
+        try {
+            await callChrome(chrome.action, 'setTitle', { title: 'Action Test' });
+            const title = await callChrome(chrome.action, 'getTitle', {});
+            if (title !== 'Action Test') throw new Error('Title did not match.');
+            return '';
+        } finally {
+            await callChrome(chrome.action, 'setTitle', { title: original });
+        }
+    })
+    .require('[Method Exists] setIcon', methodExists(chrome.action, 'setIcon'), { hideOnSuccess: true })
+    .require('[Method Call] setIcon',
+        methodCall(chrome.action, 'setIcon', { path: chrome.runtime.getURL('icons/icon19.png') }, () => {}))
+    .require('[Method Exists] setPopup', methodExists(chrome.action, 'setPopup'), { hideOnSuccess: true })
+    .require('[Method Exists] getPopup', methodExists(chrome.action, 'getPopup'), { hideOnSuccess: true })
+    .require('[Set-Get Popup]', async () => {
+        await callChrome(chrome.action, 'setPopup', { popup: 'src/browser_action/popup.html' });
+        const popup = await callChrome(chrome.action, 'getPopup', {});
+        if (popup !== chrome.runtime.getURL('src/browser_action/popup.html')) {
+            throw new Error('Popup URL did not match.');
+        }
+        return '';
+    });

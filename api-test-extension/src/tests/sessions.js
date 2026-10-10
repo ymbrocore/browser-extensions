@@ -10,7 +10,7 @@ var sessions_test = new TestSet()
     .require("[Method Call] getDevices", methodCall(chrome.sessions, 'getDevices', () => {}))
 
     .require("[Method Exists] restore", methodExists(chrome.sessions, 'restore'), { hideOnSuccess: true })
-    .require("[Method Call] restore", methodCall(chrome.sessions, 'restore', '', () => {}))
+    .require('[Invalid session id rejected] restore', expectMethodError(chrome.sessions, 'restore', /invalid session id/i, '', () => {}))
 
     .require("[Create-Close-GetRecent-Restore]", () => {
         let test_url = "http://get_recent_test/";
