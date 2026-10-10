@@ -1,14 +1,20 @@
 'use strict';
 
+callChrome(chrome.tabs, 'getCurrent').then(tab => {
+    reportTabId = tab.id;
+}, error => console.error(error));
+
 $(() => {
     let $body = $('body');
+    const manifest = chrome.runtime.getManifest();
+    $('#environment').text(`Extension ${manifest.version}; Manifest ${manifest.manifest_version}; ${navigator.userAgent}`);
 
     let test = new APITest();
 
     test
         .addTestSet("Tabs", tabs_test)
         .addTestSet("Cookies", cookies_test)
-        .addTestSet("Browser Action", browser_action_test)
+        .addTestSet("Action", browser_action_test)
         .addTestSet("Context Menus", context_menus_test)
         .addTestSet("Bookmarks", bookmarks_test)
         .addTestSet("History", history_test)
@@ -47,7 +53,10 @@ $(() => {
         $('#save-report-button')
             .toggle('fast')
             .click(function () {
-                $.ajax({ url: "/css/styles.css" }).done((css) => {
+                fetch(chrome.runtime.getURL('css/styles.css')).then(response => {
+                    if (!response.ok) throw new Error(`Cannot load report styles: ${response.status}`);
+                    return response.text();
+                }).then(css => {
                     let $body = $('html').clone();
 
                     $body.find('button').detach();
@@ -63,7 +72,10 @@ $(() => {
                         .attr('href', url)
                         .attr('download', `report-${ new Date().toISOString().slice(0, 19).replace(':', '-') }.html`)
                         .get(0).click();
-            });
+                    setTimeout(() => URL.revokeObjectURL(url), 1000);
+                }).catch(error => {
+                    $('#status').text(`Cannot save report: ${error.message}`).appendTo('.title');
+                });
         });
     });
 });

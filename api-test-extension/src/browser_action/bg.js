@@ -1,29 +1,40 @@
-"use strict";
+'use strict';
 
-let runtimeMsgFromPopup = { data: 'runtime_msg_from_popup' }; // Incoming
-let runtimeMsgToTab = { data: 'runtime_msg_from_background'}; // Outgoing
+const workerInstanceId = `${Date.now()}-${Math.random()}`;
 
-let listener = function (response, sender, sendResponse) {
-    if (response.data == runtimeMsgFromPopup.data) {
-        sendResponse('Background');
-        chrome.runtime.sendMessage(runtimeMsgToTab, response => {
-            if (response != 'Tab') {
-                failManualTest(
-                    'popup-scripts-test',
-                    "Message received by the background from the tab differs from expected"
-                )
-            } else {
-                chrome.runtime.onMessage.removeListener(listener);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!message || message.target !== 'worker') return;
+
+    if (message.type === 'ping') {
+        sendResponse({ source: 'worker', instanceId: workerInstanceId });
+    } else if (message.type === 'relay') {
+        chrome.runtime.sendMessage({
+            target: 'report',
+            type: 'ping',
+            tabId: message.tabId
+        }, response => {
+            const error = chrome.runtime.lastError;
+            sendResponse(error
+                ? { error: error.message }
+                : { source: 'worker', relayed: response });
+        });
+        return true;
+    }
+});
+
+if (chrome.contextMenus && chrome.contextMenus.onClicked) {
+    chrome.contextMenus.onClicked.addListener((info, tab) => {
+        if (info.menuItemId !== 'context_test' || !tab) return;
+
+        chrome.runtime.sendMessage({
+            target: 'report',
+            type: 'context-menu-click',
+            tabId: tab.id
+        }, () => {
+            // The report may have been closed before the menu event arrives.
+            if (chrome.runtime.lastError) {
+                console.debug(chrome.runtime.lastError.message);
             }
         });
-    }
-};
-
-chrome.runtime.onMessage.addListener(listener);
-
-document.addEventListener("DOMContentLoaded", () => {
-    let div = document.createElement("div");
-    div.setAttribute('id', 'bg-div-elem');
-
-    document.querySelector('body').appendChild(div);
-});
+    });
+}

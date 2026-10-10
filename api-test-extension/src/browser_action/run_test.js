@@ -1,52 +1,53 @@
 'use strict';
 
-chrome.tabs.getSelected(tab => {
-    if (tab.url.indexOf("chrome-extension://") == -1) {
-        let newURL = chrome.extension.getURL('src/browser_action/browser_action.html');
-        chrome.tabs.update({ url: newURL });
-    } else {
-        let $tmp = $('h3');
-        $tmp.text("Sending message to tab...");
+async function runPopupTest() {
+    const reportUrl = chrome.runtime.getURL('src/browser_action/browser_action.html');
+    const [tab] = await callChrome(chrome.tabs, 'query', {
+        active: true,
+        currentWindow: true
+    });
+    if (!tab) throw new Error('No active tab found.');
 
-        const TEST_NAME = 'popup-scripts-test';
+    if (tab.url !== reportUrl) {
+        await callChrome(chrome.tabs, 'update', tab.id, { url: reportUrl });
+        return;
+    }
 
-        let tabsMsgToPopup = { data: 'tabs_msg_from_popup' }; // Outgoing
-        let msgFromTab = { data: 'msg_from_tab' }; // Incoming
-        let runtimeMsgToTab = { data: 'runtime_msg_from_popup' }; // Outgoing
+    const responses = new Set(['report', 'worker']);
+    const replies = await Promise.all([
+        sendTestMessage('report', 'ping', { tabId: tab.id }),
+        sendTestMessage('worker', 'ping')
+    ]);
+    for (const response of replies) {
+        if (!response || !responses.has(response.source)) {
+            throw new Error('Unexpected or duplicate response to popup.');
+        }
+        responses.delete(response.source);
+    }
+    if (responses.size) throw new Error('A popup response is missing.');
 
-        chrome.tabs.getSelected(tab => {
-            chrome.tabs.sendMessage(tab.id, tabsMsgToPopup, response => {
-                if (response != 'Tab') {
-                    failManualTest(
-                        TEST_NAME,
-                        "Message received by popup from tab differs from expected"
-                    );
-                }
+    const relay = await sendTestMessage('worker', 'relay', { tabId: tab.id });
+    if (relay.source !== 'worker' || !relay.relayed || relay.relayed.source !== 'report') {
+        throw new Error('Worker could not exchange messages with the report.');
+    }
+    await sendTestMessage('report', 'popup-result', { tabId: tab.id, ok: true });
+    $('h3').text('Messages OK. Close and reopen to repeat.');
+}
+
+$(() => {
+    runPopupTest().catch(async error => {
+        $('h3').text(`Failed: ${error.message}`);
+        try {
+            const [tab] = await callChrome(chrome.tabs, 'query', {
+                active: true, currentWindow: true
             });
-        });
-
-        let responses = new Set(['Tab', 'Background']);
-
-        let listener = function (response, sender, sendResponse) {
-            if (response.data == msgFromTab.data) {
-                sendResponse('Popup');
-                chrome.runtime.sendMessage(runtimeMsgToTab, response => {
-                    if (response in responses) {
-                        responses.delete(response.data);
-
-                         if (!responses.size) {
-                             chrome.runtime.onMessage.removeListener(listener);
-                         }
-                    } else {
-                        failManualTest(
-                            TEST_NAME,
-                            "Message received by the popup from the tab differs from expected"
-                        )
-                    }
+            if (tab) {
+                await sendTestMessage('report', 'popup-result', {
+                    tabId: tab.id, ok: false, error: error.message
                 });
             }
-        };
-
-        chrome.runtime.onMessage.addListener(listener);
-    }
+        } catch (reportError) {
+            console.error(reportError);
+        }
+    });
 });
