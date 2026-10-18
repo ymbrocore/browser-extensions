@@ -5,7 +5,7 @@
 -  "manifest_version": 2,
 -  "version": "0.1.9",
 +  "manifest_version": 3,
-+  "version": "0.2.0",
++  "version": "0.2.1",
    "name": "Browser API Test",
    "description": "Tests Chrome API for browser extensions.",
    "icons": {
@@ -594,11 +594,12 @@
                      if (tab.id == tabID && info.status == "complete") {
 --- a/api-test-extension/src/tests/common.js
 +++ b/api-test-extension/src/tests/common.js
-@@ -5,9 +5,79 @@
+@@ -5,9 +5,93 @@
  const TITLE_COLOR_SUCCESS = "#5cb85c";
  const TITLE_COLOR_FAIL = "#d9534f";
  
 +let reportTabId;
++let platformInfoPromise;
 +
 +function callChrome(obj, method, ...args) {
 +    return new Promise((resolve, reject) => {
@@ -627,6 +628,19 @@
 +            reject(error);
 +        }
 +    });
++}
++
++function skipOnAndroid(fn) {
++    return async () => {
++        if (!platformInfoPromise) {
++            platformInfoPromise = callChrome(chrome.runtime, 'getPlatformInfo');
++        }
++        const platformInfo = await platformInfoPromise;
++        if (platformInfo.os === 'android') {
++            return { skip: 'android not supported' };
++        }
++        return fn();
++    };
 +}
 +
 +function sendTestMessage(target, type, data = {}) {
@@ -675,7 +689,7 @@
              return '';
          } else {
              return "Method not found.";
-@@ -17,18 +87,33 @@
+@@ -17,18 +101,33 @@
  
  function methodCall(obj, method, ...args) {
      return () => {
@@ -713,7 +727,7 @@
              return "Event not found.";
          }
  
-@@ -97,4 +182,4 @@
+@@ -97,4 +196,4 @@
  
      $t.parent().show('fast')
          .prev().css('background-color', TITLE_COLOR_FAIL);
@@ -1406,17 +1420,48 @@
  
      .require("[Property Exists] services.passwordSavingEnabled",
          methodExists(chrome.privacy.services, 'passwordSavingEnabled'), { hideOnSuccess: true })
+@@ -78,10 +65,10 @@
+     .suggest("[Property Get] services.spellingServiceEnabled {Unsupported on Android}", () => "Test disabled")
+ 
+     .require("[Property Exists] services.translationServiceEnabled",
+-        methodExists(chrome.privacy.services, 'translationServiceEnabled'), { hideOnSuccess: true })
+-    .require("[Property Get] services.translationServiceEnabled", () => new Promise((resolve, reject) => {
++        skipOnAndroid(methodExists(chrome.privacy.services, 'translationServiceEnabled')), { hideOnSuccess: true })
++    .require("[Property Get] services.translationServiceEnabled", skipOnAndroid(() => new Promise((resolve, reject) => {
+         chrome.privacy.services.translationServiceEnabled.get({}, () => resolve(''));
+-    }), { async: true })
++    })), { async: true })
+ 
+     .require("[Property Exists] websites", methodExists(chrome.privacy, 'websites'))
+ 
 --- a/api-test-extension/src/tests/sessions.js
 +++ b/api-test-extension/src/tests/sessions.js
-@@ -10,7 +10,7 @@
-     .require("[Method Call] getDevices", methodCall(chrome.sessions, 'getDevices', () => {}))
+@@ -4,15 +4,15 @@
+     .require("[Method Exists]", methodExists(chrome, 'sessions'), { hideOnSuccess: true })
+ 
+     .require("[Method Exists] getRecentlyClosed", methodExists(chrome.sessions, 'getRecentlyClosed'), { hideOnSuccess: true })
+-    .require("[Method Call] getRecentlyClosed", methodCall(chrome.sessions, 'getRecentlyClosed', () => {}))
++    .require("[Method Call] getRecentlyClosed", skipOnAndroid(methodCall(chrome.sessions, 'getRecentlyClosed', () => {})))
+ 
+     .require("[Method Exists] getDevices", methodExists(chrome.sessions, 'getDevices'), { hideOnSuccess: true })
+-    .require("[Method Call] getDevices", methodCall(chrome.sessions, 'getDevices', () => {}))
++    .require("[Method Call] getDevices", skipOnAndroid(methodCall(chrome.sessions, 'getDevices', () => {})))
  
      .require("[Method Exists] restore", methodExists(chrome.sessions, 'restore'), { hideOnSuccess: true })
 -    .require("[Method Call] restore", methodCall(chrome.sessions, 'restore', '', () => {}))
-+    .require('[Invalid session id rejected] restore', expectMethodError(chrome.sessions, 'restore', /invalid session id/i, '', () => {}))
++    .require('[Invalid session id rejected] restore', skipOnAndroid(expectMethodError(chrome.sessions, 'restore', /invalid session id/i, '', () => {})))
  
-     .require("[Create-Close-GetRecent-Restore]", () => {
+-    .require("[Create-Close-GetRecent-Restore]", () => {
++    .require("[Create-Close-GetRecent-Restore]", skipOnAndroid(() => {
          let test_url = "http://get_recent_test/";
+         return new Promise((resolve, reject) => {
+             chrome.tabs.create({
+@@ -65,4 +65,4 @@
+                 });
+             })
+         });
+-    }, { async: true });
++    }), { async: true });
 --- a/api-test-extension/src/tests/tabs.js
 +++ b/api-test-extension/src/tests/tabs.js
 @@ -11,56 +11,56 @@
@@ -1569,7 +1614,7 @@
          });
      }), { async: true })
  
-@@ -203,12 +197,7 @@
+@@ -203,28 +197,48 @@
      .require("[Method Exists] update", methodExists(chrome.tabs, 'update'), { hideOnSuccess: true })
      .require("[Method Call] update", () => new Promise((resolve, reject) => {
          chrome.tabs.getCurrent(tab => {
@@ -1583,7 +1628,9 @@
          });
      }), { async: true })
  
-@@ -217,9 +206,34 @@
+     .require("[Method Exists] detectLanguage", methodExists(chrome.tabs, 'detectLanguage'), { hideOnSuccess: true })
+-    .require("[Method Call] detectLanguage", methodCall(chrome.tabs, 'detectLanguage', () => {}))
++    .require("[Method Call] detectLanguage", skipOnAndroid(methodCall(chrome.tabs, 'detectLanguage', () => {})))
  
      .require("[Method Exists] captureVisibleTab", methodExists(chrome.tabs, 'captureVisibleTab'),
          { hideOnSuccess: true })
@@ -1620,6 +1667,29 @@
  
      .require("[Method Exists] setZoom", methodExists(chrome.tabs, 'setZoom'), { hideOnSuccess: true })
      .require("[Method Exists] getZoom", methodExists(chrome.tabs, 'getZoom'), { hideOnSuccess: true })
+ 
+-    .require("[Set-Get Zoom]", () => new Promise((resolve, reject) => {
++    .require("[Set-Get Zoom]", skipOnAndroid(() => new Promise((resolve, reject) => {
+         let zoom = 0;
+         chrome.tabs.getZoom(zoom_ => {
+             zoom = zoom_;
+@@ -241,13 +255,13 @@
+                 }, 500);
+             })
+         });
+-    }), { async: true })
++    })), { async: true })
+ 
+     .require("[Method Exists] setZoomSettings", methodExists(chrome.tabs, 'setZoomSettings'), { hideOnSuccess: true })
+-    .require("[Method Call] setZoomSettings", methodCall(chrome.tabs, 'setZoomSettings', {}, () => {}))
++    .require("[Method Call] setZoomSettings", skipOnAndroid(methodCall(chrome.tabs, 'setZoomSettings', {}, () => {})))
+ 
+     .require("[Method Exists] getZoomSettings", methodExists(chrome.tabs, 'getZoomSettings'), { hideOnSuccess: true })
+-    .require("[Method Call] getZoomSettings", methodCall(chrome.tabs, 'getZoomSettings', () => {}))
++    .require("[Method Call] getZoomSettings", skipOnAndroid(methodCall(chrome.tabs, 'getZoomSettings', () => {})))
+ 
+     // Beta
+     .suggest("[Method Exists] discard", methodExists(chrome.tabs, 'discard'), { hideOnSuccess: true })
 @@ -258,7 +272,7 @@
              let resolved = false;
  
