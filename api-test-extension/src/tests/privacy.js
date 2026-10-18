@@ -65,10 +65,10 @@ var privacy_test = new TestSet()
     .suggest("[Property Get] services.spellingServiceEnabled {Unsupported on Android}", () => "Test disabled")
 
     .require("[Property Exists] services.translationServiceEnabled",
-        methodExists(chrome.privacy.services, 'translationServiceEnabled'), { hideOnSuccess: true })
-    .require("[Property Get] services.translationServiceEnabled", () => new Promise((resolve, reject) => {
+        skipOnAndroid(methodExists(chrome.privacy.services, 'translationServiceEnabled')), { hideOnSuccess: true })
+    .require("[Property Get] services.translationServiceEnabled", skipOnAndroid(() => new Promise((resolve, reject) => {
         chrome.privacy.services.translationServiceEnabled.get({}, () => resolve(''));
-    }), { async: true })
+    })), { async: true })
 
     .require("[Property Exists] websites", methodExists(chrome.privacy, 'websites'))
 

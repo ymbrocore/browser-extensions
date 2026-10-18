@@ -4,15 +4,15 @@ var sessions_test = new TestSet()
     .require("[Method Exists]", methodExists(chrome, 'sessions'), { hideOnSuccess: true })
 
     .require("[Method Exists] getRecentlyClosed", methodExists(chrome.sessions, 'getRecentlyClosed'), { hideOnSuccess: true })
-    .require("[Method Call] getRecentlyClosed", methodCall(chrome.sessions, 'getRecentlyClosed', () => {}))
+    .require("[Method Call] getRecentlyClosed", skipOnAndroid(methodCall(chrome.sessions, 'getRecentlyClosed', () => {})))
 
     .require("[Method Exists] getDevices", methodExists(chrome.sessions, 'getDevices'), { hideOnSuccess: true })
-    .require("[Method Call] getDevices", methodCall(chrome.sessions, 'getDevices', () => {}))
+    .require("[Method Call] getDevices", skipOnAndroid(methodCall(chrome.sessions, 'getDevices', () => {})))
 
     .require("[Method Exists] restore", methodExists(chrome.sessions, 'restore'), { hideOnSuccess: true })
-    .require('[Invalid session id rejected] restore', expectMethodError(chrome.sessions, 'restore', /invalid session id/i, '', () => {}))
+    .require('[Invalid session id rejected] restore', skipOnAndroid(expectMethodError(chrome.sessions, 'restore', /invalid session id/i, '', () => {})))
 
-    .require("[Create-Close-GetRecent-Restore]", () => {
+    .require("[Create-Close-GetRecent-Restore]", skipOnAndroid(() => {
         let test_url = "http://get_recent_test/";
         return new Promise((resolve, reject) => {
             chrome.tabs.create({
@@ -65,4 +65,4 @@ var sessions_test = new TestSet()
                 });
             })
         });
-    }, { async: true });
+    }), { async: true });

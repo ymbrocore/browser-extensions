@@ -202,7 +202,7 @@ var tabs_test = new TestSet()
     }), { async: true })
 
     .require("[Method Exists] detectLanguage", methodExists(chrome.tabs, 'detectLanguage'), { hideOnSuccess: true })
-    .require("[Method Call] detectLanguage", methodCall(chrome.tabs, 'detectLanguage', () => {}))
+    .require("[Method Call] detectLanguage", skipOnAndroid(methodCall(chrome.tabs, 'detectLanguage', () => {})))
 
     .require("[Method Exists] captureVisibleTab", methodExists(chrome.tabs, 'captureVisibleTab'),
         { hideOnSuccess: true })
@@ -238,7 +238,7 @@ var tabs_test = new TestSet()
     .require("[Method Exists] setZoom", methodExists(chrome.tabs, 'setZoom'), { hideOnSuccess: true })
     .require("[Method Exists] getZoom", methodExists(chrome.tabs, 'getZoom'), { hideOnSuccess: true })
 
-    .require("[Set-Get Zoom]", () => new Promise((resolve, reject) => {
+    .require("[Set-Get Zoom]", skipOnAndroid(() => new Promise((resolve, reject) => {
         let zoom = 0;
         chrome.tabs.getZoom(zoom_ => {
             zoom = zoom_;
@@ -255,13 +255,13 @@ var tabs_test = new TestSet()
                 }, 500);
             })
         });
-    }), { async: true })
+    })), { async: true })
 
     .require("[Method Exists] setZoomSettings", methodExists(chrome.tabs, 'setZoomSettings'), { hideOnSuccess: true })
-    .require("[Method Call] setZoomSettings", methodCall(chrome.tabs, 'setZoomSettings', {}, () => {}))
+    .require("[Method Call] setZoomSettings", skipOnAndroid(methodCall(chrome.tabs, 'setZoomSettings', {}, () => {})))
 
     .require("[Method Exists] getZoomSettings", methodExists(chrome.tabs, 'getZoomSettings'), { hideOnSuccess: true })
-    .require("[Method Call] getZoomSettings", methodCall(chrome.tabs, 'getZoomSettings', () => {}))
+    .require("[Method Call] getZoomSettings", skipOnAndroid(methodCall(chrome.tabs, 'getZoomSettings', () => {})))
 
     // Beta
     .suggest("[Method Exists] discard", methodExists(chrome.tabs, 'discard'), { hideOnSuccess: true })

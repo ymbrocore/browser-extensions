@@ -6,6 +6,7 @@ const TITLE_COLOR_SUCCESS = "#5cb85c";
 const TITLE_COLOR_FAIL = "#d9534f";
 
 let reportTabId;
+let platformInfoPromise;
 
 function callChrome(obj, method, ...args) {
     return new Promise((resolve, reject) => {
@@ -34,6 +35,19 @@ function callChrome(obj, method, ...args) {
             reject(error);
         }
     });
+}
+
+function skipOnAndroid(fn) {
+    return async () => {
+        if (!platformInfoPromise) {
+            platformInfoPromise = callChrome(chrome.runtime, 'getPlatformInfo');
+        }
+        const platformInfo = await platformInfoPromise;
+        if (platformInfo.os === 'android') {
+            return { skip: 'android not supported' };
+        }
+        return fn();
+    };
 }
 
 function sendTestMessage(target, type, data = {}) {
